@@ -42,13 +42,17 @@ import org.apache.beam.sdk.metrics.Gauge;
 import org.apache.beam.sdk.metrics.Histogram;
 import org.apache.beam.sdk.metrics.MetricName;
 import org.apache.beam.sdk.metrics.MetricsContainer;
+import org.apache.beam.sdk.metrics.StringSet;
 import org.apache.beam.sdk.options.ExecutorOptions;
 import org.apache.beam.sdk.options.ExperimentalOptions;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.util.HistogramData;
 import org.apache.beam.vendor.grpc.v1p60p1.com.google.protobuf.ByteString;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.base.Joiner;
+import org.checkerframework.checker.initialization.qual.Initialized;
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.checker.nullness.qual.UnknownKeyFor;
 import org.joda.time.DateTimeUtils.MillisProvider;
 import org.joda.time.Duration;
 import org.joda.time.format.PeriodFormatter;
@@ -214,6 +218,14 @@ public class ExecutionStateSampler {
         return tracker.currentState.metricsContainer.getGauge(metricName);
       }
       return tracker.metricsContainerRegistry.getUnboundContainer().getGauge(metricName);
+    }
+
+    @Override
+    public @UnknownKeyFor @NonNull @Initialized StringSet getStringSet(@UnknownKeyFor @NonNull @Initialized MetricName metricName) {
+      if(tracker.currentState != null) {
+        return tracker.currentState.metricsContainer.getStringSet(metricName);
+      }
+      return tracker.metricsContainerRegistry.getUnboundContainer().getStringSet(metricName);
     }
 
     @Override
