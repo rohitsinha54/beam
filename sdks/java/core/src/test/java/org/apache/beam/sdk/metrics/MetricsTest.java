@@ -28,6 +28,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.Serializable;
+
+import com.google.common.collect.ImmutableSet;
 import org.apache.beam.sdk.PipelineResult;
 import org.apache.beam.sdk.io.GenerateSequence;
 import org.apache.beam.sdk.testing.NeedsRunner;
@@ -35,6 +37,7 @@ import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.testing.UsesAttemptedMetrics;
 import org.apache.beam.sdk.testing.UsesCommittedMetrics;
 import org.apache.beam.sdk.testing.UsesCounterMetrics;
+import org.apache.beam.sdk.testing.UsesStringSetMetrics;
 import org.apache.beam.sdk.testing.UsesDistributionMetrics;
 import org.apache.beam.sdk.testing.UsesGaugeMetrics;
 import org.apache.beam.sdk.testing.ValidatesRunner;
@@ -104,11 +107,13 @@ public class MetricsTest implements Serializable {
                     @ProcessElement
                     public void processElement(ProcessContext c) {
                       Distribution values = Metrics.distribution(MetricsTest.class, "input");
+                      StringSet sources = Metrics.stringSet(MetricsTest.class, "sources");
                       count.inc();
                       values.update(c.element());
 
                       c.output(c.element());
                       c.output(c.element());
+                      sources.add("gcs");
                     }
 
                     @DoFn.FinishBundle
@@ -125,11 +130,13 @@ public class MetricsTest implements Serializable {
                         public void processElement(ProcessContext c) {
                           Distribution values = Metrics.distribution(MetricsTest.class, "input");
                           Gauge gauge = Metrics.gauge(MetricsTest.class, "my-gauge");
+                          StringSet sinks = Metrics.stringSet(MetricsTest.class, "sinks");
                           Integer element = c.element();
                           count.inc();
                           values.update(element);
                           gauge.set(12L);
                           c.output(element);
+                          sinks.add("bq", "kafka");
                           c.output(output2, element);
                         }
                       })
@@ -352,7 +359,8 @@ public class MetricsTest implements Serializable {
       UsesAttemptedMetrics.class,
       UsesCounterMetrics.class,
       UsesDistributionMetrics.class,
-      UsesGaugeMetrics.class
+      UsesGaugeMetrics.class,
+      UsesStringSetMetrics.class
     })
     @Test
     public void testAllAttemptedMetrics() {
@@ -386,6 +394,15 @@ public class MetricsTest implements Serializable {
       MetricQueryResults metrics = queryTestMetrics(result);
       assertGaugeMetrics(metrics, false);
     }
+
+    @Category({ValidatesRunner.class, UsesAttemptedMetrics.class, UsesStringSetMetrics.class})
+    @Test
+    public void testAttemptedStringSetMetrics() {
+      PipelineResult result = runPipelineWithMetrics();
+      MetricQueryResults metrics = queryTestMetrics(result);
+      assertStringSetMetrics(metrics, false);
+    }
+
   }
 
   private static void assertCounterMetrics(MetricQueryResults metrics, boolean isCommitted) {
@@ -412,6 +429,18 @@ public class MetricsTest implements Serializable {
                 "my-gauge",
                 "MyStep2",
                 GaugeResult.create(12L, Instant.now()),
+                isCommitted)));
+  }
+
+  private static void assertStringSetMetrics(MetricQueryResults metrics, boolean isCommitted) {
+    assertThat(
+        metrics.getStringSets(),
+        hasItem(
+            metricsResult(
+                NAMESPACE,
+                "sources",
+                "MyStep1",
+                StringSetResult.create(ImmutableSet.of("gcs")),
                 isCommitted)));
   }
 
@@ -458,5 +487,6 @@ public class MetricsTest implements Serializable {
     assertCounterMetrics(metrics, isCommitted);
     assertDistributionMetrics(metrics, isCommitted);
     assertGaugeMetrics(metrics, isCommitted);
+    assertStringSetMetrics(metrics, isCommitted);
   }
 }
