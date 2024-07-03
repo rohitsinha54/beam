@@ -66,22 +66,7 @@ class BigQueryTableSourceDef implements BigQuerySourceDef {
    */
   private TableReference setDefaultProjectIfAbsent(
       BigQueryOptions bqOptions, TableReference tableReference) {
-    if (Strings.isNullOrEmpty(tableReference.getProjectId())) {
-      checkState(
-          !Strings.isNullOrEmpty(bqOptions.getProject()),
-          "No project ID set in %s or %s, cannot construct a complete %s",
-          TableReference.class.getSimpleName(),
-          BigQueryOptions.class.getSimpleName(),
-          TableReference.class.getSimpleName());
-      LOG.info(
-          "Project ID not set in {}. Using default project from {}.",
-          TableReference.class.getSimpleName(),
-          BigQueryOptions.class.getSimpleName());
-      tableReference.setProjectId(
-          bqOptions.getBigQueryProject() == null
-              ? bqOptions.getProject()
-              : bqOptions.getBigQueryProject());
-    }
+    BigQueryStorageTableSource.setProjectIDIfNotPresent(bqOptions, tableReference, LOG);
     return tableReference;
   }
 

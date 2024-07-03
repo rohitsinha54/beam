@@ -168,22 +168,7 @@ public class BigQueryStorageTableSource<T> extends BigQueryStorageSourceBase<T> 
       return maybeTable;
     } else {
       TableReference tableReference = tableReferenceProvider.get();
-      if (Strings.isNullOrEmpty(tableReference.getProjectId())) {
-        checkState(
-            !Strings.isNullOrEmpty(options.getProject()),
-            "No project ID set in %s or %s, cannot construct a complete %s",
-            TableReference.class.getSimpleName(),
-            BigQueryOptions.class.getSimpleName(),
-            TableReference.class.getSimpleName());
-        LOG.info(
-            "Project ID not set in {}. Using default project from {}.",
-            TableReference.class.getSimpleName(),
-            BigQueryOptions.class.getSimpleName());
-        tableReference.setProjectId(
-            options.getBigQueryProject() == null
-                ? options.getProject()
-                : options.getBigQueryProject());
-      }
+      setProjectIDIfNotPresent(options, tableReference, LOG);
       try (DatasetService datasetService = bqServices.getDatasetService(options)) {
         Table table = datasetService.getTable(tableReference);
         if (table == null) {
@@ -192,6 +177,26 @@ public class BigQueryStorageTableSource<T> extends BigQueryStorageSourceBase<T> 
         cachedTable.compareAndSet(null, table);
         return table;
       }
+    }
+  }
+
+  static void setProjectIDIfNotPresent(BigQueryOptions options, TableReference tableReference,
+      Logger log) {
+    if (Strings.isNullOrEmpty(tableReference.getProjectId())) {
+      checkState(
+          !Strings.isNullOrEmpty(options.getProject()),
+          "No project ID set in %s or %s, cannot construct a complete %s",
+          TableReference.class.getSimpleName(),
+          BigQueryOptions.class.getSimpleName(),
+          TableReference.class.getSimpleName());
+      log.info(
+          "Project ID not set in {}. Using default project from {}.",
+          TableReference.class.getSimpleName(),
+          BigQueryOptions.class.getSimpleName());
+      tableReference.setProjectId(
+          options.getBigQueryProject() == null
+              ? options.getProject()
+              : options.getBigQueryProject());
     }
   }
 }

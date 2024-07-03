@@ -20,6 +20,7 @@ package org.apache.beam.sdk.io.gcp.bigquery;
 import static org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.base.Preconditions.checkNotNull;
 
 import com.google.api.services.bigquery.model.Table;
+import com.google.api.services.bigquery.model.TableReference;
 import com.google.api.services.bigquery.model.TableSchema;
 import com.google.cloud.bigquery.storage.v1.CreateReadSessionRequest;
 import com.google.cloud.bigquery.storage.v1.DataFormat;
@@ -29,10 +30,12 @@ import java.io.IOException;
 import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.beam.sdk.coders.Coder;
+import org.apache.beam.sdk.metrics.Lineage;
 import org.apache.beam.sdk.extensions.arrow.ArrowConversion;
 import org.apache.beam.sdk.extensions.avro.schemas.utils.AvroUtils;
 import org.apache.beam.sdk.io.BoundedSource;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryServices.StorageClient;
+import org.apache.beam.sdk.metrics.StringSet;
 import org.apache.beam.sdk.options.PipelineOptions;
 import org.apache.beam.sdk.options.ValueProvider;
 import org.apache.beam.sdk.transforms.SerializableFunction;
@@ -106,15 +109,23 @@ abstract class BigQueryStorageSourceBase<T> extends BoundedSource<T> {
     @Nullable Table targetTable = getTargetTable(bqOptions);
 
     ReadSession.Builder readSessionBuilder = ReadSession.newBuilder();
+    LOG.info("#lineage# In BigQueryStorageSourceBase#split");
+    StringSet lineageSources = Lineage.getSources();
     if (targetTable != null) {
       readSessionBuilder.setTable(
           BigQueryHelpers.toTableResourceName(targetTable.getTableReference()));
+      LOG.info("#lineage# sources being registered is " +
+          BigQueryHelpers.toTableSpec(targetTable.getTableReference()));
+      lineageSources.add(BigQueryHelpers.toTableSpec(targetTable.getTableReference()));
     } else {
       // If the table does not exist targetTable will be null.
       // Construct the table id if we can generate it. For error recording/logging.
       @Nullable String tableReferenceId = getTargetTableId(bqOptions);
       if (tableReferenceId != null) {
         readSessionBuilder.setTable(tableReferenceId);
+        TableReference tableReference = BigQueryHelpers.parseTableUrn(tableReferenceId);
+        LOG.info("#lineage# sources being registered is targetTable is null " + BigQueryHelpers.toTableSpec(tableReference));
+        lineageSources.add(BigQueryHelpers.toTableSpec(tableReference));
       }
     }
 
