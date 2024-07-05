@@ -1,0 +1,78 @@
+package org.apache.beam.runners.core.metrics;
+
+import static org.junit.Assert.*;
+
+import com.google.common.collect.ImmutableSet;
+import java.util.Collections;
+import org.apache.beam.sdk.metrics.StringSetResult;
+import org.apache.beam.sdk.util.HistogramData;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+
+/** Tests for {@link StringSetData}. */
+public class StringSetDataTest {
+  @Rule
+  public ExpectedException exception = ExpectedException.none();
+  @Test
+  public void testCreate() {
+    // test empty stringset creation
+    assertTrue(StringSetData.create(Collections.emptySet()).stringSet().isEmpty());
+    // single element test
+    ImmutableSet<String> singleElement = ImmutableSet.of("ab");
+    StringSetData setData = StringSetData.create(singleElement);
+    assertEquals(setData.stringSet(), singleElement);
+
+    // multiple element test
+    ImmutableSet<String> multipleElement = ImmutableSet.of("cd", "ef");
+    setData = StringSetData.create(multipleElement);
+    assertEquals(setData.stringSet(), multipleElement);
+  }
+
+  @Test
+  public void testCombine() {
+    StringSetData singleElement = StringSetData.create(ImmutableSet.of("ab"));
+    StringSetData multipleElement = StringSetData.create(ImmutableSet.of("cd", "ef"));
+    StringSetData result = singleElement.combine(multipleElement);
+    assertEquals(result.stringSet(), ImmutableSet.of("cd", "ef", "ab"));
+
+    // original sets in stringsetdata should have remained the same
+    assertEquals(singleElement.stringSet(), ImmutableSet.of("ab"));
+    assertEquals(multipleElement.stringSet(), ImmutableSet.of("cd", "ef"));
+  }
+
+  @Test
+  public void testCombineWithEmpty() {
+    StringSetData empty = StringSetData.empty();
+    StringSetData multipleElement = StringSetData.create(ImmutableSet.of("cd", "ef"));
+    StringSetData result = empty.combine(multipleElement);
+    assertEquals(result.stringSet(), ImmutableSet.of("cd", "ef"));
+    // original sets in stringsetdata should have remained the same
+    assertTrue(empty.stringSet().isEmpty());
+    assertEquals(multipleElement.stringSet(), ImmutableSet.of("cd", "ef"));
+  }
+  @Test
+  public void testEmpty() {
+    StringSetData empty = StringSetData.empty();
+    assertTrue(empty.stringSet().isEmpty());
+  }
+
+  @Test
+  public void testNoAddToStringSetDataEmpty() {
+    exception.expect(UnsupportedOperationException.class);
+    StringSetData empty = StringSetData.empty();
+    empty.stringSet().add("aa");
+  }
+
+  @Test
+  public void testEmptyExtract() {
+    assertTrue(StringSetData.empty().extractResult().getStringSet().isEmpty());
+  }
+
+  @Test
+  public void testExtract() {
+    ImmutableSet<String> contents = ImmutableSet.of("ab", "cd");
+    StringSetData stringSetData = StringSetData.create(contents);
+    assertEquals(stringSetData.stringSet(), contents);
+  }
+}

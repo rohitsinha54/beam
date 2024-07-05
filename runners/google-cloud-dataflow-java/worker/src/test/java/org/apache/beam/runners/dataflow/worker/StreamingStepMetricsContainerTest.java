@@ -37,11 +37,13 @@ import com.google.api.services.dataflow.model.IntegerGauge;
 import com.google.api.services.dataflow.model.Linear;
 import com.google.api.services.dataflow.model.MetricValue;
 import com.google.api.services.dataflow.model.PerStepNamespaceMetrics;
+import com.google.api.services.dataflow.model.StringList;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -57,6 +59,7 @@ import org.apache.beam.sdk.metrics.MetricName;
 import org.apache.beam.sdk.metrics.MetricsContainer;
 import org.apache.beam.sdk.metrics.NoOpCounter;
 import org.apache.beam.sdk.metrics.NoOpHistogram;
+import org.apache.beam.sdk.metrics.StringSet;
 import org.apache.beam.sdk.util.HistogramData;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.Lists;
 import org.hamcrest.collection.IsEmptyIterable;
@@ -265,6 +268,49 @@ public class StreamingStepMetricsContainerTest {
 
     // Release freeze on clock.
     DateTimeUtils.setCurrentMillisSystem();
+  }
+  @Test
+  public void testStringSetUpdateExtraction() {
+    StringSet stringSet = c1.getStringSet(name1);
+    // stringSet.add("ab");
+    stringSet.add("cd, ef");
+    // stringSet.add("gh");
+
+    Iterable<CounterUpdate> updates = StreamingStepMetricsContainer.extractMetricUpdates(registry);
+    assertThat(
+        updates,
+        containsInAnyOrder(
+            new CounterUpdate()
+                .setStructuredNameAndMetadata(
+                    new CounterStructuredNameAndMetadata()
+                        .setName(
+                            new CounterStructuredName()
+                                .setOrigin(Origin.USER.toString())
+                                .setOriginNamespace("ns")
+                                .setName("name1")
+                                .setOriginalStepName("s1"))
+                        .setMetadata(new CounterMetadata().setKind(Kind.SET.toString())))
+                .setCumulative(false)
+                .setStringList(new StringList().setElements(Arrays.asList("cd", "ef")))));
+
+    // c2.getStringSet(name1).add("ij");
+    //
+    // updates = StreamingStepMetricsContainer.extractMetricUpdates(registry);
+    // assertThat(
+    //     updates,
+    //     containsInAnyOrder(
+    //         new CounterUpdate()
+    //             .setStructuredNameAndMetadata(
+    //                 new CounterStructuredNameAndMetadata()
+    //                     .setName(
+    //                         new CounterStructuredName()
+    //                             .setOrigin(Origin.USER.toString())
+    //                             .setOriginNamespace("ns")
+    //                             .setName("name1")
+    //                             .setOriginalStepName("s1"))
+    //                     .setMetadata(new CounterMetadata().setKind(Kind.SET.toString())))
+    //             .setCumulative(false)
+    //             .setStringList(new StringList().setElements(Arrays.asList("ab", "cd", "ef", "gh", "ij")))));
   }
 
   @Test
