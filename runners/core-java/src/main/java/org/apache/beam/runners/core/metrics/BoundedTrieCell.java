@@ -68,9 +68,12 @@ public class BoundedTrieCell implements BoundedTrie, MetricCell<BoundedTrieData>
     return dirty;
   }
 
+  /** Return the cumulative value which is a deep copy of this BoundedTrieData. */
   @Override
   public BoundedTrieData getCumulative() {
-    return setValue.get();
+    // The underlying object held under this AtomicReference is not thread safe as hence
+    // return a deep copy BoundedTrieData which represents the data known at this current time.
+    return setValue.get().getCumulative();
   }
 
   @Override

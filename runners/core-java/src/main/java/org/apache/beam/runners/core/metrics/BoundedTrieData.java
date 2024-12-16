@@ -47,6 +47,8 @@ import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.Immuta
  *   <li>**Singleton:** Contains a single path.
  *   <li>**Trie:** Contains a {@link BoundedTrieNode} representing the root of the trie.
  * </ul>
+ *
+ * <bold>This class is not thread-safe.</bold>
  */
 @AutoValue
 public abstract class BoundedTrieData implements Serializable {
@@ -137,7 +139,7 @@ public abstract class BoundedTrieData implements Serializable {
   public BoundedTrieData getCumulative() {
     return root().isPresent()
         ? create(null, new BoundedTrieNode(root().get()), bound())
-        : create(singleton().get(), null, bound());
+        : create(singleton().get(), null, bound()); // safe to call as one must exist
   }
 
   /** Extracts the data from this {@link BoundedTrieData} as a {@link BoundedTrieResult}. */
@@ -159,7 +161,7 @@ public abstract class BoundedTrieData implements Serializable {
    * @param segments The path to add.
    * @return A new {@link BoundedTrieData} instance with the added path.
    */
-  public BoundedTrieData add(Iterable<String> segments) {
+  public BoundedTrieData add(@Nonnull Iterable<String> segments) {
     List<String> segmentsParts = ImmutableList.copyOf(segments);
     if (root().isPresent() && singleton().isPresent()) {
       return create(segmentsParts, null, bound());
@@ -181,7 +183,7 @@ public abstract class BoundedTrieData implements Serializable {
    * @param other The other {@link BoundedTrieData} to combine with.
    * @return A new {@link BoundedTrieData} instance representing the combined data.
    */
-  public BoundedTrieData combine(BoundedTrieData other) {
+  public BoundedTrieData combine(@Nonnull BoundedTrieData other) {
     if (root().isPresent() && singleton().isPresent()) {
       return other;
     } else if (other.root().isPresent() && other.singleton().isPresent()) {
@@ -218,7 +220,7 @@ public abstract class BoundedTrieData implements Serializable {
    * @param value The path to check.
    * @return True if the trie contains the path, false otherwise.
    */
-  public boolean contains(List<String> value) {
+  public boolean contains(@Nonnull List<String> value) {
     if (singleton().isPresent()) {
       return value.equals(singleton().get());
     } else if (root().isPresent()) {
@@ -263,7 +265,6 @@ public abstract class BoundedTrieData implements Serializable {
   public static class EmptyBoundedTrieData extends BoundedTrieData {
 
     private static final EmptyBoundedTrieData INSTANCE = new EmptyBoundedTrieData();
-    private static final int DEFAULT_BOUND = 1; // Define the default bound here
 
     private EmptyBoundedTrieData() {}
 
