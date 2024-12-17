@@ -36,7 +36,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public class BoundedTrieCell implements BoundedTrie, MetricCell<BoundedTrieData> {
 
   private final DirtyState dirty = new DirtyState();
-  private final AtomicReference<BoundedTrieData> setValue =
+  private final AtomicReference<BoundedTrieData> value =
       new AtomicReference<>(BoundedTrieData.empty());
   private final MetricName name;
 
@@ -51,15 +51,15 @@ public class BoundedTrieCell implements BoundedTrie, MetricCell<BoundedTrieData>
 
   @Override
   public void reset() {
-    setValue.set(BoundedTrieData.empty());
+    value.set(BoundedTrieData.empty());
     dirty.reset();
   }
 
   void update(BoundedTrieData data) {
     BoundedTrieData original;
     do {
-      original = setValue.get();
-    } while (!setValue.compareAndSet(original, original.combine(data)));
+      original = value.get();
+    } while (!value.compareAndSet(original, original.combine(data)));
     dirty.afterModification();
   }
 
@@ -73,7 +73,7 @@ public class BoundedTrieCell implements BoundedTrie, MetricCell<BoundedTrieData>
   public BoundedTrieData getCumulative() {
     // The underlying object held under this AtomicReference is not thread safe as hence
     // return a deep copy BoundedTrieData which represents the data known at this current time.
-    return setValue.get().getCumulative();
+    return value.get().getCumulative();
   }
 
   @Override
@@ -86,7 +86,7 @@ public class BoundedTrieCell implements BoundedTrie, MetricCell<BoundedTrieData>
     if (object instanceof BoundedTrieCell) {
       BoundedTrieCell boundedTrieCell = (BoundedTrieCell) object;
       return Objects.equals(dirty, boundedTrieCell.dirty)
-          && Objects.equals(setValue.get(), boundedTrieCell.setValue.get())
+          && Objects.equals(value.get(), boundedTrieCell.value.get())
           && Objects.equals(name, boundedTrieCell.name);
     }
     return false;
@@ -94,15 +94,15 @@ public class BoundedTrieCell implements BoundedTrie, MetricCell<BoundedTrieData>
 
   @Override
   public int hashCode() {
-    return Objects.hash(dirty, setValue.get(), name);
+    return Objects.hash(dirty, value.get(), name);
   }
 
   @Override
   public void add(Iterable<String> values) {
     BoundedTrieData original;
     do {
-      original = setValue.get();
-    } while (!setValue.compareAndSet(original, original.add(values)));
+      original = value.get();
+    } while (!value.compareAndSet(original, original.add(values)));
     dirty.afterModification();
   }
 

@@ -380,30 +380,30 @@ public class BoundedTrieNodeTest {
     lotsRoot.addAll(Arrays.asList(Arrays.asList("c", "c"), Arrays.asList("d", "d")));
     BoundedTrieData lots = BoundedTrieData.create(lotsRoot);
 
-    assertEquals(Collections.emptySet(), empty.getBoundedTrieResult().getResults());
+    assertEquals(Collections.emptySet(), empty.getBoundedTrieResult());
     assertEquals(
         ImmutableSet.of(Arrays.asList("a", "a", String.valueOf(false))),
-        empty.combine(singletonA).getBoundedTrieResult().getResults());
+        empty.combine(singletonA).getBoundedTrieResult());
     assertEquals(
         ImmutableSet.of(Arrays.asList("a", "a", String.valueOf(false))),
-        singletonA.combine(empty).getBoundedTrieResult().getResults());
+        singletonA.combine(empty).getBoundedTrieResult());
     assertEquals(
         ImmutableSet.of(
             Arrays.asList("a", "a", String.valueOf(false)),
             Arrays.asList("b", "b", String.valueOf(false))),
-        singletonA.combine(singletonB).getBoundedTrieResult().getResults());
+        singletonA.combine(singletonB).getBoundedTrieResult());
     assertEquals(
         ImmutableSet.of(
             Arrays.asList("a", "a", String.valueOf(false)),
             Arrays.asList("c", "c", String.valueOf(false)),
             Arrays.asList("d", "d", String.valueOf(false))),
-        singletonA.combine(lots).getBoundedTrieResult().getResults());
+        singletonA.combine(lots).getBoundedTrieResult());
     assertEquals(
         ImmutableSet.of(
             Arrays.asList("a", "a", String.valueOf(false)),
             Arrays.asList("c", "c", String.valueOf(false)),
             Arrays.asList("d", "d", String.valueOf(false))),
-        lots.combine(singletonA).getBoundedTrieResult().getResults());
+        lots.combine(singletonA).getBoundedTrieResult());
   }
 
   @Test
@@ -421,6 +421,6 @@ public class BoundedTrieNodeTest {
             Arrays.asList("a", String.valueOf(true)),
             Arrays.asList("b", "d", String.valueOf(false)),
             Arrays.asList("c", "d", String.valueOf(false))),
-        combined.getBoundedTrieResult().getResults());
+        combined.getBoundedTrieResult());
   }
 }

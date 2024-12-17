@@ -28,29 +28,28 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.apache.beam.model.pipeline.v1.MetricsApi.BoundedTrie;
-import org.apache.beam.sdk.metrics.BoundedTrieResult;
+import org.apache.beam.sdk.annotations.Internal;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableList;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableMap;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableSet;
 
 /**
- * Represents data stored in a bounded trie. This data structure is used to efficiently store and
+ * Experimental and subject to incompatible changes, or even removal, in a future releases.
+ *
+ * <p>Represents data stored in a bounded trie. This data structure is used to efficiently store and
  * aggregate a collection of string sequences, paths/FQN with a limited size.
  *
  * <p>The trie can be in one of two states:
  *
- * <ul>
- *   <li>**Singleton:** Contains a single path.
- *   <li>**Trie:** Contains a {@link BoundedTrieNode} representing the root of the trie.
- * </ul>
- *
- * <bold>This class is not thread-safe.</bold>
+ * <p><bold>This class is not thread-safe.</bold>
  */
 @AutoValue
+@Internal
 public abstract class BoundedTrieData implements Serializable {
 
   private static final int DEFAULT_BOUND = 100; // Default maximum size of the trie
@@ -59,16 +58,16 @@ public abstract class BoundedTrieData implements Serializable {
    * Returns an {@link Optional} containing the singleton path if this {@link BoundedTrieData}
    * represents a single path.
    */
-  public abstract Optional<List<String>> singleton();
+  protected abstract Optional<List<String>> singleton();
 
   /**
    * Returns an {@link Optional} containing the root {@link BoundedTrieNode} if this {@link
    * BoundedTrieData} represents a trie.
    */
-  public abstract Optional<BoundedTrieNode> root();
+  protected abstract Optional<BoundedTrieNode> root();
 
   /** Returns the maximum size of the trie. */
-  public abstract int bound();
+  protected abstract int bound();
 
   /**
    * Creates a {@link BoundedTrieData} instance.
@@ -142,16 +141,22 @@ public abstract class BoundedTrieData implements Serializable {
         : create(singleton().get(), null, bound()); // safe to call as one must exist
   }
 
-  /** Extracts the data from this {@link BoundedTrieData} as a {@link BoundedTrieResult}. */
-  public BoundedTrieResult getBoundedTrieResult() {
+  /**
+   * Returns an immutable set of lists, where each list represents a path in the bounded trie. The
+   * last element in each path is a boolean in string representation denoting whether this path was
+   * truncated. i.e. <["a", "b", "false"], ["c", "true"]>
+   *
+   * @return The set of paths.
+   */
+  public Set<List<String>> getBoundedTrieResult() {
     if (root().isPresent()) {
-      return BoundedTrieResult.create(new HashSet<>(root().get().flattened()));
+      return new HashSet<>(root().get().flattened());
     } else if (singleton().isPresent()) {
       List<String> list = new ArrayList<>(singleton().get());
       list.add(String.valueOf(false));
-      return BoundedTrieResult.create(ImmutableSet.of(list));
+      return ImmutableSet.of(list);
     } else {
-      return BoundedTrieResult.empty();
+      return ImmutableSet.of();
     }
   }
 
@@ -292,13 +297,10 @@ public abstract class BoundedTrieData implements Serializable {
       return DEFAULT_BOUND;
     }
 
-    /**
-     * Returns an empty {@link BoundedTrieResult}. This represents the result of extracting data
-     * from an empty trie.
-     */
+    /** Returns an empty Set. */
     @Override
-    public BoundedTrieResult getBoundedTrieResult() {
-      return BoundedTrieResult.empty();
+    public Set<List<String>> getBoundedTrieResult() {
+      return ImmutableSet.of();
     }
   }
 
@@ -345,7 +347,7 @@ public abstract class BoundedTrieData implements Serializable {
      *
      * @param other The node to copy.
      */
-    public BoundedTrieNode(BoundedTrieNode other) {
+    public BoundedTrieNode(@Nonnull BoundedTrieNode other) {
       this.truncated = other.truncated;
       this.size = other.size;
       this.children = new HashMap<>();
