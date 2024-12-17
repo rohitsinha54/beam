@@ -274,8 +274,19 @@ public class BoundedTrieNodeTest {
     // Test merging new values.
     BoundedTrieNode newValuesNode = new BoundedTrieNode();
     newValuesNode.addAll(newValues);
+    assertCovers(newValuesNode, new HashSet<>(newValues), 0);
     assertEquals(expectedDelta, nodeCopy.merge(newValuesNode));
     assertCovers(nodeCopy, expectedWithNewValues, 2);
+    // adding after merge should not change previous node on which this was merged
+    List<String> additionalValue = Arrays.asList("new3", "new3.1");
+    expectedDelta = node.isTruncated() ? 0 : 1;
+    assertEquals(expectedDelta, newValuesNode.add(additionalValue));
+    // previous node on which the merge was done should have remained same
+    assertCovers(nodeCopy, expectedWithNewValues, 2);
+    // the newValuesNode should have changed
+    Set<List<String>> updatedNewValues = new HashSet<>(newValues);
+    updatedNewValues.add(additionalValue);
+    assertCovers(newValuesNode, updatedNewValues, 0);
   }
 
   /**

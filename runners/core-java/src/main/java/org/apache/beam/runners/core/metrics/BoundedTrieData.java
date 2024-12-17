@@ -416,7 +416,7 @@ public abstract class BoundedTrieData implements Serializable {
     }
 
     /**
-     * Merges the given `BoundedTrieNode` into this node.
+     * Merges the given `BoundedTrieNode` into this node and as a result this node is changed.
      *
      * @param other The node to merge.
      * @return The change in the size of the subtree rooted at this node.
@@ -436,8 +436,9 @@ public abstract class BoundedTrieData implements Serializable {
         return 0;
       }
       if (children.isEmpty()) {
-        children = new HashMap<>(other.children);
-        int delta = other.size - size;
+        children = new HashMap<>();
+        other.children.forEach((key, value) -> children.put(key, new BoundedTrieNode(value)));
+        int delta = this.size - other.size;
         size += delta;
         return delta;
       }
@@ -447,7 +448,7 @@ public abstract class BoundedTrieData implements Serializable {
         BoundedTrieNode otherChild = entry.getValue();
         BoundedTrieNode thisChild = children.get(prefix);
         if (thisChild == null) {
-          children.put(prefix, otherChild);
+          children.put(prefix, new BoundedTrieNode(otherChild));
           delta += otherChild.size;
         } else {
           delta += thisChild.merge(otherChild);
