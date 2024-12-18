@@ -121,7 +121,7 @@ public class BoundedTrieData implements Serializable {
   }
 
   /** Returns a new {@link BoundedTrieData} instance that is a deep copy of this instance. */
-  public BoundedTrieData getCumulative() {
+  public synchronized BoundedTrieData getCumulative() {
     List<String> singleton = this.singleton == null ? null : new ArrayList<>(this.singleton);
     // deep copy
     BoundedTrieNode root = this.root == null ? null : new BoundedTrieNode(this.root);
@@ -163,7 +163,7 @@ public class BoundedTrieData implements Serializable {
     } else {
       if (this.root == null) {
         this.root = this.asTrie();
-        // since now we are setting the root clean up singleton
+        // since now, we are setting the root clean up singleton
         this.singleton = null;
       }
       this.root.add(segmentsParts);

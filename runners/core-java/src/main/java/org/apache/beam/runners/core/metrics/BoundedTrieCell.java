@@ -31,6 +31,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  * In that case retrieving the underlying cell and reporting directly to it avoids a step of
  * indirection.
  */
+// TODO: Write multi-threaded test in MetricContainerImp for this Cell class too.
 public class BoundedTrieCell implements BoundedTrie, MetricCell<BoundedTrieData> {
 
   private final DirtyState dirty = new DirtyState();
@@ -55,7 +56,7 @@ public class BoundedTrieCell implements BoundedTrie, MetricCell<BoundedTrieData>
 
   @Override
   public BoundedTrieData getCumulative() {
-    return value;
+    return value.getCumulative();
   }
 
   @Override

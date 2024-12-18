@@ -458,19 +458,15 @@ public class BoundedTrieNodeTest {
     final CountDownLatch latch = new CountDownLatch(numThreads);
     ExecutorService executor = Executors.newFixedThreadPool(numThreads);
 
-    long seed = new Random().nextLong();
-    Random rand = new Random(seed);
+    Random rand = new Random(new Random().nextLong());
     List<List<String>> segments = randomSegments(numThreads, 3, 9, 0.5, rand);
-    for (List<String> segment : segments) {
-      LOG.info(segment.toString());
-    }
 
-    for (int i = 0; i < numThreads; i++) {
-      int finalI = i;
+    for (int curThread = 0; curThread < numThreads; curThread++) {
+      int finalCurThread = curThread;
       executor.execute(
           () -> {
             try {
-              mainTrie.add(segments.get(finalI));
+              mainTrie.add(segments.get(finalCurThread));
               // }
             } finally {
               latch.countDown();
@@ -480,10 +476,9 @@ public class BoundedTrieNodeTest {
 
     latch.await();
     executor.shutdown();
-    assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
+    assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
     HashSet<List<String>> dedupedSegments = new HashSet<>(segments);
-    assertEquals(
-        everythingDeduped(dedupedSegments).size(), mainTrie.size()); // Expect all paths to be added
+    assertEquals(everythingDeduped(dedupedSegments).size(), mainTrie.size());
     // Assert that all added paths are present in the mainTrie
     for (List<String> seg : dedupedSegments) {
       assertTrue(mainTrie.contains(seg));
@@ -497,27 +492,30 @@ public class BoundedTrieNodeTest {
     final CountDownLatch latch = new CountDownLatch(numThreads);
     ExecutorService executor = Executors.newFixedThreadPool(numThreads);
 
-    long seed = new Random().nextLong();
-    Random rand = new Random(seed);
-    List<List<String>> segments = randomSegments(numThreads, 3, 9, 0.5, rand);
+    Random rand = new Random(new Random().nextLong());
 
     // initialize mainTrie
     List<String> initialSegment = randomSegments(1, 3, 9, 0.5, rand).get(0);
     mainTrie.add(initialSegment);
+
+    // prepare all segments in advance outside of multiple threads
+    List<List<String>> segments = randomSegments(numThreads, 3, 9, 0.5, rand);
     segments.add(initialSegment);
-    for (int i = 0; i < numThreads; i++) {
-      int finalI = i;
+    List<String> anotherSegment = randomSegments(1, 3, 9, 0.5, rand).get(0);
+    segments.add(anotherSegment);
+
+    for (int curThread = 0; curThread < numThreads; curThread++) {
+      int finalCurThread = curThread;
       executor.execute(
           () -> {
             try {
               BoundedTrieData other = new BoundedTrieData();
-              other.add(segments.get(finalI));
-              // for some others we add more than one element to trigger root over
+              // only reads of segments; no write should be done here
+              other.add(segments.get(finalCurThread));
+              // for one node we add more than one segment to trigger root over
               // singleton and test combine with root.
-              if (finalI % 2 == 0) {
-                List<String> newSegment = Arrays.asList("new", String.valueOf(finalI));
-                segments.add(newSegment);
-                other.add(newSegment);
+              if (finalCurThread == 7) { // just a randomly selected prime number
+                other.add(anotherSegment);
               }
               mainTrie.combine(other);
               // }
@@ -529,10 +527,9 @@ public class BoundedTrieNodeTest {
 
     latch.await();
     executor.shutdown();
-    assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
+    assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
     HashSet<List<String>> dedupedSegments = new HashSet<>(segments);
-    assertEquals(
-        everythingDeduped(dedupedSegments).size(), mainTrie.size()); // Expect all paths to be added
+    assertEquals(everythingDeduped(dedupedSegments).size(), mainTrie.size());
     // Assert that all added paths are present in the mainTrie
     for (List<String> seg : dedupedSegments) {
       assertTrue(mainTrie.contains(seg));

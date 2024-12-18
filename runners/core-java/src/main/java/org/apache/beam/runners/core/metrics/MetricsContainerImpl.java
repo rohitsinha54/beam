@@ -93,6 +93,9 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
   private MetricsMap<KV<MetricName, HistogramData.BucketType>, HistogramCell> histograms =
       new MetricsMap<>(HistogramCell::new);
 
+  private MetricsMap<MetricName, BoundedTrieCell> boundedTries =
+      new MetricsMap<>(BoundedTrieCell::new);
+
   private MetricsContainerImpl(@Nullable String stepName, boolean isProcessWide) {
     this.stepName = stepName;
     this.isProcessWide = isProcessWide;
@@ -129,6 +132,7 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
     gauges.forEachValue(GaugeCell::reset);
     histograms.forEachValue(HistogramCell::reset);
     stringSets.forEachValue(StringSetCell::reset);
+    boundedTries.forEachValue(BoundedTrieCell::reset);
   }
 
   /**
@@ -214,6 +218,23 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
    */
   public @Nullable StringSetCell tryGetStringSet(MetricName metricName) {
     return stringSets.tryGet(metricName);
+  }
+
+  /**
+   * Return a {@link BoundedTrieCell} named {@code metricName}. If it doesn't exist, create a {@code
+   * Metric} with the specified name.
+   */
+  @Override
+  public BoundedTrieCell getBoundedTrie(MetricName metricName) {
+    return boundedTries.get(metricName);
+  }
+
+  /**
+   * Return a {@code StringSetCell} named {@code metricName}. If it doesn't exist, return {@code
+   * null}.
+   */
+  public @Nullable BoundedTrieCell tryGetBoundedTrie(MetricName metricName) {
+    return boundedTries.tryGet(metricName);
   }
 
   private <UpdateT, CellT extends MetricCell<UpdateT>>
