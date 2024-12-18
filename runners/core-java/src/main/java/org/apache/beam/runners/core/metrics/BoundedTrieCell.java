@@ -19,10 +19,8 @@ package org.apache.beam.runners.core.metrics;
 
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.beam.sdk.metrics.BoundedTrie;
 import org.apache.beam.sdk.metrics.MetricName;
-import org.apache.beam.sdk.metrics.MetricsContainer;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -36,31 +34,18 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 public class BoundedTrieCell implements BoundedTrie, MetricCell<BoundedTrieData> {
 
   private final DirtyState dirty = new DirtyState();
-  private final AtomicReference<BoundedTrieData> value =
-      new AtomicReference<>(BoundedTrieData.empty());
+  private final BoundedTrieData value;
   private final MetricName name;
 
-  /**
-   * Generally, runners should construct instances using the methods in {@link
-   * MetricsContainerImpl}, unless they need to define their own version of {@link
-   * MetricsContainer}. These constructors are *only* public so runners can instantiate.
-   */
   public BoundedTrieCell(MetricName name) {
     this.name = name;
+    this.value = new BoundedTrieData();
   }
 
   @Override
   public void reset() {
-    value.set(BoundedTrieData.empty());
+    value.clear();
     dirty.reset();
-  }
-
-  void update(BoundedTrieData data) {
-    BoundedTrieData original;
-    do {
-      original = value.get();
-    } while (!value.compareAndSet(original, original.combine(data)));
-    dirty.afterModification();
   }
 
   @Override
@@ -68,12 +53,9 @@ public class BoundedTrieCell implements BoundedTrie, MetricCell<BoundedTrieData>
     return dirty;
   }
 
-  /** Return the cumulative value which is a deep copy of this BoundedTrieData. */
   @Override
   public BoundedTrieData getCumulative() {
-    // The underlying object held under this AtomicReference is not thread safe as hence
-    // return a deep copy BoundedTrieData which represents the data known at this current time.
-    return value.get().getCumulative();
+    return value;
   }
 
   @Override
@@ -86,7 +68,7 @@ public class BoundedTrieCell implements BoundedTrie, MetricCell<BoundedTrieData>
     if (object instanceof BoundedTrieCell) {
       BoundedTrieCell boundedTrieCell = (BoundedTrieCell) object;
       return Objects.equals(dirty, boundedTrieCell.dirty)
-          && Objects.equals(value.get(), boundedTrieCell.value.get())
+          && Objects.equals(value, boundedTrieCell.value)
           && Objects.equals(name, boundedTrieCell.name);
     }
     return false;
@@ -94,15 +76,12 @@ public class BoundedTrieCell implements BoundedTrie, MetricCell<BoundedTrieData>
 
   @Override
   public int hashCode() {
-    return Objects.hash(dirty, value.get(), name);
+    return Objects.hash(dirty, value, name);
   }
 
   @Override
   public void add(Iterable<String> values) {
-    BoundedTrieData original;
-    do {
-      original = value.get();
-    } while (!value.compareAndSet(original, original.add(values)));
+    this.value.add(values);
     dirty.afterModification();
   }
 
