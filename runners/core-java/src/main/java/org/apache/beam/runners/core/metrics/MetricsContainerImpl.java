@@ -230,7 +230,7 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
   }
 
   /**
-   * Return a {@code StringSetCell} named {@code metricName}. If it doesn't exist, return {@code
+   * Return a {@code BoundedTrieCell} named {@code metricName}. If it doesn't exist, return {@code
    * null}.
    */
   public @Nullable BoundedTrieCell tryGetBoundedTrie(MetricName metricName) {

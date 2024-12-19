@@ -406,21 +406,19 @@ public class BoundedTrieNodeTest {
     lotsRoot.addAll(Arrays.asList(Arrays.asList("c", "c"), Arrays.asList("d", "d")));
     BoundedTrieData lots = new BoundedTrieData(lotsRoot);
 
-    assertEquals(Collections.emptySet(), empty.getBoundedTrieResult());
+    assertEquals(Collections.emptySet(), empty.getResult());
     empty.combine(singletonA);
     assertEquals(
-        ImmutableSet.of(Arrays.asList("a", "a", String.valueOf(false))),
-        empty.getBoundedTrieResult());
+        ImmutableSet.of(Arrays.asList("a", "a", String.valueOf(false))), empty.getResult());
     singletonA.combine(empty);
     assertEquals(
-        ImmutableSet.of(Arrays.asList("a", "a", String.valueOf(false))),
-        singletonA.getBoundedTrieResult());
+        ImmutableSet.of(Arrays.asList("a", "a", String.valueOf(false))), singletonA.getResult());
     singletonA.combine(singletonB);
     assertEquals(
         ImmutableSet.of(
             Arrays.asList("a", "a", String.valueOf(false)),
             Arrays.asList("b", "b", String.valueOf(false))),
-        singletonA.getBoundedTrieResult());
+        singletonA.getResult());
     singletonA.combine(lots);
     assertEquals(
         ImmutableSet.of(
@@ -428,7 +426,7 @@ public class BoundedTrieNodeTest {
             Arrays.asList("b", "b", String.valueOf(false)),
             Arrays.asList("c", "c", String.valueOf(false)),
             Arrays.asList("d", "d", String.valueOf(false))),
-        singletonA.getBoundedTrieResult());
+        singletonA.getResult());
     lots.combine(singletonA);
     assertEquals(
         ImmutableSet.of(
@@ -436,7 +434,7 @@ public class BoundedTrieNodeTest {
             Arrays.asList("b", "b", String.valueOf(false)),
             Arrays.asList("c", "c", String.valueOf(false)),
             Arrays.asList("d", "d", String.valueOf(false))),
-        lots.getBoundedTrieResult());
+        lots.getResult());
   }
 
   @Test
@@ -454,7 +452,7 @@ public class BoundedTrieNodeTest {
             Arrays.asList("a", String.valueOf(true)),
             Arrays.asList("b", "d", String.valueOf(false)),
             Arrays.asList("c", "d", String.valueOf(false))),
-        mainTree.getBoundedTrieResult());
+        mainTree.getResult());
   }
 
   @Test
@@ -497,7 +495,6 @@ public class BoundedTrieNodeTest {
     BoundedTrieData mainTrie = new BoundedTrieData();
     final CountDownLatch latch = new CountDownLatch(numThreads);
     ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-
     Random rand = new Random(new Random().nextLong());
 
     // initialize mainTrie
@@ -523,30 +520,7 @@ public class BoundedTrieNodeTest {
               if (finalCurThread == 7) { // just a randomly selected prime number
                 other.add(anotherSegment);
               }
-
-              // BoundedTrieData original;
-              // // do {
-              // //   original = mainTrie.get();
-              // //   LOG.info(
-              // //       "In thread: "
-              // //           + finalCurThread
-              // //           + " mainTrie "
-              // //           + original.toString()
-              // //           + " other "
-              // //           + other);
-              // // } while (!mainTrie.compareAndSet(original, original.combine(other)));
-              // // LOG.info(
-              // //     "In thread: " + finalCurThread + " aftercombine " +
-              // mainTrie.get().toString());
-              LOG.info(
-                  "In thread: "
-                      + finalCurThread
-                      + " mainTrie "
-                      + mainTrie.toString()
-                      + " other "
-                      + other);
               mainTrie.combine(other);
-              LOG.info("In thread: " + finalCurThread + " aftercombine " + mainTrie.toString());
               // }
             } finally {
               latch.countDown();
@@ -558,7 +532,6 @@ public class BoundedTrieNodeTest {
     executor.shutdown();
     assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
     HashSet<List<String>> dedupedSegments = new HashSet<>(segments);
-    LOG.info("while check: " + mainTrie + " oo " + mainTrie.size());
     assertEquals(everythingDeduped(dedupedSegments).size(), mainTrie.size());
     // Assert that all added paths are present in the mainTrie
     for (List<String> seg : dedupedSegments) {

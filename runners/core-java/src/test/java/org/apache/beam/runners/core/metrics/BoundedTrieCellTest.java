@@ -42,7 +42,7 @@ public class BoundedTrieCellTest {
             Arrays.asList("a", "a", String.valueOf(false)),
             Arrays.asList("b", "d", String.valueOf(false)),
             Arrays.asList("b", "c", String.valueOf(false))),
-        cumulative.getBoundedTrieResult());
+        cumulative.getResult());
 
     assertThat(cell.getDirty().beforeCommit(), equalTo(true));
     cell.getDirty().afterCommit();
@@ -52,7 +52,7 @@ public class BoundedTrieCellTest {
     cell.add("b", "a");
     BoundedTrieData newCumulative = cell.getCumulative();
     assertEquals(
-        newCumulative.getBoundedTrieResult(),
+        newCumulative.getResult(),
         ImmutableSet.of(
             Arrays.asList("a", "a", String.valueOf(false)),
             Arrays.asList("b", "d", String.valueOf(false)),
@@ -61,7 +61,7 @@ public class BoundedTrieCellTest {
 
     // but not previously obtained cumulative value
     assertEquals(
-        cumulative.getBoundedTrieResult(),
+        cumulative.getResult(),
         ImmutableSet.of(
             Arrays.asList("a", "a", String.valueOf(false)),
             Arrays.asList("b", "d", String.valueOf(false)),

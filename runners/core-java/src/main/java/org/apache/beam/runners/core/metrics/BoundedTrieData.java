@@ -30,7 +30,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.apache.beam.model.pipeline.v1.MetricsApi.BoundedTrie;
-import org.apache.beam.model.pipeline.v1.MetricsApi.BoundedTrieNode;
 import org.apache.beam.sdk.annotations.Internal;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableList;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableSet;
@@ -42,10 +41,10 @@ import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.Immuta
  * aggregate a collection of string sequences, paths/FQN with a limited size.
  *
  * <p>This class is thread-safe but the underlying BoundedTrieNode contained on it isn't. This is
- * intentional for performance concerns. Hence, this class does not exposes the contained node and
+ * intentional for performance concerns. Hence, this class does not expose the contained node and
  * should not be modified to do so in future when used with multiple threads. This class choose to
  * achieve thread-safety through locks rather than just creating and returning immutable instances
- * to it's caller because the combining of a large and wide trie require per-node copy which has
+ * to its caller because the combining of a large and wide trie require per-node copy which has
  * exponential cost and more expensive than synchronization.
  *
  * <p>Note: {@link #equals(Object)}, {@link #hashCode()} of this class are not synchronized and if
@@ -83,6 +82,17 @@ public class BoundedTrieData implements Serializable {
     this(null, root, DEFAULT_BOUND);
   }
 
+  /**
+   * Constructs a new BoundedTrieData object.
+   *
+   * <p>A BoundedTrieData object represents the data stored in a bounded trie. It can either be a
+   * singleton list of strings, or a trie with a given root and bound.
+   *
+   * @param singleton the singleton list of strings, or null if the data is a trie
+   * @param root the root of the trie, or null if the data is a singleton list
+   * @param bound the maximum number of elements allowed in the trie
+   * @throws IllegalArgumentException if both {@code singleton} and {@code root} are non-null
+   */
   public BoundedTrieData(List<String> singleton, BoundedTrieNode root, int bound) {
     assert singleton == null || root == null;
     this.singleton = singleton;
@@ -139,7 +149,7 @@ public class BoundedTrieData implements Serializable {
    *
    * @return The set of paths.
    */
-  public synchronized Set<List<String>> getBoundedTrieResult() {
+  public synchronized Set<List<String>> getResult() {
     if (this.root == null) {
       if (this.singleton == null) {
         return ImmutableSet.of();
@@ -159,28 +169,26 @@ public class BoundedTrieData implements Serializable {
    *
    * @param segments The path to add.
    */
-  public synchronized void add(@Nonnull Iterable<String> segments) {
+  public synchronized void add(Iterable<String> segments) {
     List<String> segmentsParts = ImmutableList.copyOf(segments);
-    if (this.root == null && this.singleton == null) {
-      this.singleton = segmentsParts;
-    } else if (this.singleton != null && this.singleton.equals(segmentsParts)) {
-    } else {
-      if (this.root == null) {
+    if (this.root == null) {
+      if (this.singleton == null || !this.singleton.equals(segmentsParts)) {
         this.root = this.asTrie();
-        // since now, we are setting the root clean up singleton
         this.singleton = null;
       }
+    }
+
+    if (this.root != null) {
       this.root.add(segmentsParts);
-      if (this.root != null) {
-        if (this.root.getSize() > this.bound) {
-          this.root.trim();
-        }
+      if (this.root.getSize() > this.bound) {
+        this.root.trim();
       }
     }
   }
 
   /**
-   * Combines this {@link BoundedTrieData} with another {@link BoundedTrieData}.
+   * Combines this {@link BoundedTrieData} with another {@link BoundedTrieData} by doing a deep
+   * copy.
    *
    * @param other The other {@link BoundedTrieData} to combine with.
    */
@@ -191,7 +199,7 @@ public class BoundedTrieData implements Serializable {
     // other can be modified in some different thread, and we need to atomically access
     // its fields to combine correctly. Furthermore, simply doing this under synchronized(other)
     // is not safe as it might lead to deadlock. Assume the current thread got lock on
-    // 'this' and is executing combine with `other` and waiting to get a lock on
+    // 'this' and is executing combine with `other` and waiting to get a lock on `other`
     // while some other thread is performing `other.combiner(this)` and waiting to get a
     // lock on `this` object.
     BoundedTrieData otherDeepCopy = other.getCumulative();
@@ -204,30 +212,11 @@ public class BoundedTrieData implements Serializable {
         otherDeepCopy.root.trim();
       }
     }
-    // do a deep copy of others as we need to access its field members atomically
-    // here and other threads can modify other.
     this.root = otherDeepCopy.root;
     this.singleton = otherDeepCopy.singleton;
     this.bound = otherDeepCopy.bound;
   }
 
-  // public synchronized BoundedTrieData combine(@Nonnull BoundedTrieData other) {
-  //   if (this.root == null && this.singleton == null) {
-  //     return other;
-  //   } else if (other.root == null && other.singleton == null) {
-  //     return this;
-  //   } else {
-  //     BoundedTrieData otherDeepCopy = other.getCumulative();
-  //     otherDeepCopy.root = otherDeepCopy.asTrie();
-  //     otherDeepCopy.singleton = null;
-  //     otherDeepCopy.root.merge(this.asTrie());
-  //     otherDeepCopy.bound = Math.min(this.bound, otherDeepCopy.bound);
-  //     while (otherDeepCopy.root.getSize() > otherDeepCopy.bound) {
-  //       otherDeepCopy.root.trim();
-  //     }
-  //     return otherDeepCopy;
-  //   }
-  // }
   /**
    * Returns the number of paths stored in this trie.
    *
@@ -296,6 +285,9 @@ public class BoundedTrieData implements Serializable {
    * intended to be used directly outside of {@link BoundedTrieData} with multiple threads.
    */
   static class BoundedTrieNode implements Serializable {
+
+    public static final String TRUNCATED_TRUE = String.valueOf(true);
+    public static final String TRUNCATED_FALSE = String.valueOf(false);
     /**
      * A map from strings to child nodes. Each key represents a segment of a path/FQN, and the
      * corresponding value represents the subtree rooted at that segment.
@@ -326,7 +318,7 @@ public class BoundedTrieData implements Serializable {
      * @param truncated Whether this node is truncated.
      * @param size The size of the subtree rooted at this node.
      */
-    BoundedTrieNode(@Nonnull Map<String, BoundedTrieNode> children, boolean truncated, int size) {
+    BoundedTrieNode(Map<String, BoundedTrieNode> children, boolean truncated, int size) {
       this.children = children;
       this.size = size;
       this.truncated = truncated;
@@ -440,7 +432,7 @@ public class BoundedTrieData implements Serializable {
         BoundedTrieNode otherChild = entry.getValue();
         BoundedTrieNode thisChild = children.get(prefix);
         if (thisChild == null) {
-          children.put(prefix, new BoundedTrieNode(otherChild));
+          children.put(prefix, otherChild);
           delta += otherChild.size;
         } else {
           delta += thisChild.merge(otherChild);
@@ -463,9 +455,9 @@ public class BoundedTrieData implements Serializable {
     List<List<String>> flattened() {
       List<List<String>> result = new ArrayList<>();
       if (truncated) {
-        result.add(Collections.singletonList(String.valueOf(true)));
+        result.add(Collections.singletonList(TRUNCATED_TRUE));
       } else if (children.isEmpty()) {
-        result.add(Collections.singletonList(String.valueOf(false)));
+        result.add(Collections.singletonList(TRUNCATED_FALSE));
       } else {
         List<String> prefixes = new ArrayList<>(children.keySet());
         Collections.sort(prefixes);
