@@ -532,7 +532,16 @@ public class BoundedTrieNodeTest {
               BoundedTrieData original;
               do {
                 original = mainTrie.get();
+                LOG.info(
+                    "In thread: "
+                        + finalCurThread
+                        + " mainTrie "
+                        + original.toString()
+                        + " other "
+                        + other);
               } while (!mainTrie.compareAndSet(original, original.combine(other)));
+              LOG.info(
+                  "In thread: " + finalCurThread + " aftercombine " + mainTrie.get().toString());
               // LOG.info(
               //     "In thread: "
               //         + finalCurThread
@@ -554,6 +563,7 @@ public class BoundedTrieNodeTest {
     executor.shutdown();
     assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
     HashSet<List<String>> dedupedSegments = new HashSet<>(segments);
+    LOG.info("while check: " + mainTrie.get() + " oo " + mainTrie.get().size());
     assertEquals(everythingDeduped(dedupedSegments).size(), mainTrie.get().size());
     // Assert that all added paths are present in the mainTrie
     for (List<String> seg : dedupedSegments) {

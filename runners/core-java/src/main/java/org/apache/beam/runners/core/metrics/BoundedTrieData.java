@@ -184,70 +184,50 @@ public class BoundedTrieData implements Serializable {
    *
    * @param other The other {@link BoundedTrieData} to combine with.
    */
-  // public synchronized void combine(@Nonnull BoundedTrieData other) {
-  //   if (other.root == null && other.singleton == null) {
-  //     return;
-  //   }
-  //   // other can be modified in some different thread, and we need to atomically access
-  //   // its fields to combine correctly. Furthermore, simply doing this under synchronized(other)
-  //   // is not safe as it might lead to deadlock. Assume the current thread got lock on
-  //   // 'this' and is executing combine with `other` and waiting to get a lock on
-  // synchronized(other)
-  //   // while some other thread is performing `other.combiner(this)` and waiting to get a
-  //   // lock on `this` object.
-  //   BoundedTrieData otherDeepCopy = other.getCumulative();
-  //   if (this.root == null && this.singleton == null) {
-  //     // do a deep copy of others as we need to access its field members atomically
-  //     // here and other threads can modify other.
-  //     this.root = otherDeepCopy.root;
-  //     this.singleton = otherDeepCopy.singleton;
-  //     this.bound = otherDeepCopy.bound;
-  //   }
-  //   otherDeepCopy.root = otherDeepCopy.asTrie();
-  //   if (this.root != null) {
-  //     otherDeepCopy.root.merge(this.root);
-  //   } else {
-  //     otherDeepCopy.root.add(this.singleton);
-  //   }
-  //   otherDeepCopy.bound = Math.min(this.bound, otherDeepCopy.bound);
-  //   while (otherDeepCopy.root.getSize() > otherDeepCopy.bound) {
-  //     otherDeepCopy.root.trim();
-  //   }
-  //   return otherDeepCopy;
-  // }
-
-  public synchronized BoundedTrieData combine(@Nonnull BoundedTrieData other) {
-    if (this.root == null && this.singleton == null) {
-      return other;
-    } else if (other.root == null && other.singleton == null) {
-      return this;
-    } else {
-      BoundedTrieData self = this; // Avoid modifying 'this' directly
-      if (self.root == null && other.root != null) {
-        self = other;
-        other = this;
-      }
-
-      BoundedTrieNode combined =
-          new BoundedTrieNode(self.asTrie()); // Assuming you have a TrieNode class
-      // combined.merge(self.asTrie()); // Assuming you have an asTrie() method
-
-      if (other.root != null) {
-        combined.merge(other.root);
-      } else {
-        combined.add(other.singleton);
-      }
-
-      self.bound = Math.min(self.bound, other.bound);
-      System.out.println("#### bound " + self.bound);
-
-      while (combined.getSize() > self.bound) { // Assuming TrieNode has a getSize() method
-        combined.trim();
-      }
-
-      return new BoundedTrieData(combined);
+  public synchronized void combine(@Nonnull BoundedTrieData other) {
+    if (other.root == null && other.singleton == null) {
+      return;
     }
+    // other can be modified in some different thread, and we need to atomically access
+    // its fields to combine correctly. Furthermore, simply doing this under synchronized(other)
+    // is not safe as it might lead to deadlock. Assume the current thread got lock on
+    // 'this' and is executing combine with `other` and waiting to get a lock on
+    // while some other thread is performing `other.combiner(this)` and waiting to get a
+    // lock on `this` object.
+    BoundedTrieData otherDeepCopy = other.getCumulative();
+    if (this.root != null || this.singleton != null) {
+      otherDeepCopy.root = otherDeepCopy.asTrie();
+      otherDeepCopy.singleton = null;
+      otherDeepCopy.root.merge(this.asTrie());
+      otherDeepCopy.bound = Math.min(this.bound, otherDeepCopy.bound);
+      while (otherDeepCopy.root.getSize() > otherDeepCopy.bound) {
+        otherDeepCopy.root.trim();
+      }
+    }
+    // do a deep copy of others as we need to access its field members atomically
+    // here and other threads can modify other.
+    this.root = otherDeepCopy.root;
+    this.singleton = otherDeepCopy.singleton;
+    this.bound = otherDeepCopy.bound;
   }
+
+  // public synchronized BoundedTrieData combine(@Nonnull BoundedTrieData other) {
+  //   if (this.root == null && this.singleton == null) {
+  //     return other;
+  //   } else if (other.root == null && other.singleton == null) {
+  //     return this;
+  //   } else {
+  //     BoundedTrieData otherDeepCopy = other.getCumulative();
+  //     otherDeepCopy.root = otherDeepCopy.asTrie();
+  //     otherDeepCopy.singleton = null;
+  //     otherDeepCopy.root.merge(this.asTrie());
+  //     otherDeepCopy.bound = Math.min(this.bound, otherDeepCopy.bound);
+  //     while (otherDeepCopy.root.getSize() > otherDeepCopy.bound) {
+  //       otherDeepCopy.root.trim();
+  //     }
+  //     return otherDeepCopy;
+  //   }
+  // }
   /**
    * Returns the number of paths stored in this trie.
    *
