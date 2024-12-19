@@ -412,6 +412,7 @@ public class BoundedTrieData implements Serializable {
      * @param other The node to merge.
      * @return The change in the size of the subtree rooted at this node.
      */
+    // TODO: merge has  bug where size is incorrect when a mege is done on empty node
     int merge(BoundedTrieNode other) {
       if (truncated) {
         return 0;

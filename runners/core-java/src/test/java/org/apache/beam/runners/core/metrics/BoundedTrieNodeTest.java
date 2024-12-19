@@ -33,7 +33,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.beam.runners.core.metrics.BoundedTrieData.BoundedTrieNode;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableList;
@@ -408,21 +407,21 @@ public class BoundedTrieNodeTest {
     BoundedTrieData lots = new BoundedTrieData(lotsRoot);
 
     assertEquals(Collections.emptySet(), empty.getBoundedTrieResult());
-    empty = empty.combine(singletonA);
+    empty.combine(singletonA);
     assertEquals(
         ImmutableSet.of(Arrays.asList("a", "a", String.valueOf(false))),
         empty.getBoundedTrieResult());
-    singletonA = singletonA.combine(empty);
+    singletonA.combine(empty);
     assertEquals(
         ImmutableSet.of(Arrays.asList("a", "a", String.valueOf(false))),
         singletonA.getBoundedTrieResult());
-    singletonA = singletonA.combine(singletonB);
+    singletonA.combine(singletonB);
     assertEquals(
         ImmutableSet.of(
             Arrays.asList("a", "a", String.valueOf(false)),
             Arrays.asList("b", "b", String.valueOf(false))),
         singletonA.getBoundedTrieResult());
-    singletonA = singletonA.combine(lots);
+    singletonA.combine(lots);
     assertEquals(
         ImmutableSet.of(
             Arrays.asList("a", "a", String.valueOf(false)),
@@ -430,7 +429,7 @@ public class BoundedTrieNodeTest {
             Arrays.asList("c", "c", String.valueOf(false)),
             Arrays.asList("d", "d", String.valueOf(false))),
         singletonA.getBoundedTrieResult());
-    lots = lots.combine(singletonA);
+    lots.combine(singletonA);
     assertEquals(
         ImmutableSet.of(
             Arrays.asList("a", "a", String.valueOf(false)),
@@ -448,7 +447,7 @@ public class BoundedTrieNodeTest {
     right.addAll(Arrays.asList(Arrays.asList("a", "y"), Arrays.asList("c", "d")));
 
     BoundedTrieData mainTree = new BoundedTrieData(null, left, 10);
-    mainTree = mainTree.combine(new BoundedTrieData(null, right, 3));
+    mainTree.combine(new BoundedTrieData(null, right, 3));
 
     assertEquals(
         ImmutableSet.of(
@@ -495,7 +494,7 @@ public class BoundedTrieNodeTest {
   @Test
   public void testCombineMultiThreaded() throws InterruptedException {
     final int numThreads = 10;
-    final AtomicReference<BoundedTrieData> mainTrie = new AtomicReference<>(new BoundedTrieData());
+    BoundedTrieData mainTrie = new BoundedTrieData();
     final CountDownLatch latch = new CountDownLatch(numThreads);
     ExecutorService executor = Executors.newFixedThreadPool(numThreads);
 
@@ -503,11 +502,7 @@ public class BoundedTrieNodeTest {
 
     // initialize mainTrie
     List<String> initialSegment = randomSegments(1, 3, 9, 0.5, rand).get(0);
-    mainTrie.getAndUpdate(
-        a -> {
-          a.add(initialSegment);
-          return a;
-        });
+    mainTrie.add(initialSegment);
 
     // prepare all segments in advance outside of multiple threads
     List<List<String>> segments = randomSegments(numThreads, 3, 9, 0.5, rand);
@@ -529,29 +524,29 @@ public class BoundedTrieNodeTest {
                 other.add(anotherSegment);
               }
 
-              BoundedTrieData original;
-              do {
-                original = mainTrie.get();
-                LOG.info(
-                    "In thread: "
-                        + finalCurThread
-                        + " mainTrie "
-                        + original.toString()
-                        + " other "
-                        + other);
-              } while (!mainTrie.compareAndSet(original, original.combine(other)));
+              // BoundedTrieData original;
+              // // do {
+              // //   original = mainTrie.get();
+              // //   LOG.info(
+              // //       "In thread: "
+              // //           + finalCurThread
+              // //           + " mainTrie "
+              // //           + original.toString()
+              // //           + " other "
+              // //           + other);
+              // // } while (!mainTrie.compareAndSet(original, original.combine(other)));
+              // // LOG.info(
+              // //     "In thread: " + finalCurThread + " aftercombine " +
+              // mainTrie.get().toString());
               LOG.info(
-                  "In thread: " + finalCurThread + " aftercombine " + mainTrie.get().toString());
-              // LOG.info(
-              //     "In thread: "
-              //         + finalCurThread
-              //         + " mainTrie "
-              //         + mainTrie[0].toString()
-              //         + " other "
-              //         + other);
-              // mainTrie[0] = mainTrie[0].combine(other);
-              // LOG.info("In thread: " + finalCurThread + " aftercombine " +
-              // mainTrie[0].toString());
+                  "In thread: "
+                      + finalCurThread
+                      + " mainTrie "
+                      + mainTrie.toString()
+                      + " other "
+                      + other);
+              mainTrie.combine(other);
+              LOG.info("In thread: " + finalCurThread + " aftercombine " + mainTrie.toString());
               // }
             } finally {
               latch.countDown();
@@ -563,11 +558,11 @@ public class BoundedTrieNodeTest {
     executor.shutdown();
     assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
     HashSet<List<String>> dedupedSegments = new HashSet<>(segments);
-    LOG.info("while check: " + mainTrie.get() + " oo " + mainTrie.get().size());
-    assertEquals(everythingDeduped(dedupedSegments).size(), mainTrie.get().size());
+    LOG.info("while check: " + mainTrie + " oo " + mainTrie.size());
+    assertEquals(everythingDeduped(dedupedSegments).size(), mainTrie.size());
     // Assert that all added paths are present in the mainTrie
     for (List<String> seg : dedupedSegments) {
-      assertTrue(mainTrie.get().contains(seg));
+      assertTrue(mainTrie.contains(seg));
     }
   }
 }
