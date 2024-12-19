@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.apache.beam.model.pipeline.v1.MetricsApi.BoundedTrie;
+import org.apache.beam.model.pipeline.v1.MetricsApi.BoundedTrieNode;
 import org.apache.beam.sdk.annotations.Internal;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableList;
 import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.ImmutableSet;
@@ -40,9 +41,15 @@ import org.apache.beam.vendor.guava.v32_1_2_jre.com.google.common.collect.Immuta
  * <p>Represents data stored in a bounded trie. This data structure is used to efficiently store and
  * aggregate a collection of string sequences, paths/FQN with a limited size.
  *
- * <p>The trie can be in one of two states:
+ * <p>This class is thread-safe but the underlying BoundedTrieNode contained on it isn't. This is
+ * intentional for performance concerns. Hence, this class does not exposes the contained node and
+ * should not be modified to do so in future when used with multiple threads. This class choose to
+ * achieve thread-safety through locks rather than just creating and returning immutable instances
+ * to it's caller because the combining of a large and wide trie require per-node copy which has
+ * exponential cost and more expensive than synchronization.
  *
- * <p>This class is thread-safe.
+ * <p>Note: {@link #equals(Object)}, {@link #hashCode()} of this class are not synchronized and if
+ * their usage needs synchronization then the client should do it.
  */
 @Internal
 @SuppressWarnings({
@@ -52,10 +59,7 @@ public class BoundedTrieData implements Serializable {
 
   private static final int DEFAULT_BOUND = 100; // Default maximum size of the trie
 
-  /**
-   * Returns an {@link Optional} containing the singleton path if this {@link BoundedTrieData}
-   * represents a single path.
-   */
+  /** Returns the singleton path if this {@link BoundedTrieData} represents a single path. */
   private List<String> singleton;
 
   /**
@@ -87,7 +91,7 @@ public class BoundedTrieData implements Serializable {
   }
 
   /** Converts this {@link BoundedTrieData} to its proto {@link BoundedTrie}. */
-  public BoundedTrie toProto() {
+  public synchronized BoundedTrie toProto() {
     BoundedTrie.Builder builder = BoundedTrie.newBuilder();
     builder.setBound(this.bound);
     if (this.singleton != null) {
@@ -108,15 +112,15 @@ public class BoundedTrieData implements Serializable {
 
   /** Returns this {@link BoundedTrieData} as a {@link BoundedTrieNode}. */
   @Nonnull
-  private BoundedTrieNode asTrie() {
+  private synchronized BoundedTrieNode asTrie() {
     if (this.root != null) {
       return this.root;
     } else {
-      BoundedTrieNode root = new BoundedTrieNode();
+      BoundedTrieNode trieNode = new BoundedTrieNode();
       if (this.singleton != null) {
-        root.add(this.singleton);
+        trieNode.add(this.singleton);
       }
-      return root;
+      return trieNode;
     }
   }
 
@@ -180,30 +184,70 @@ public class BoundedTrieData implements Serializable {
    *
    * @param other The other {@link BoundedTrieData} to combine with.
    */
-  public synchronized void combine(@Nonnull BoundedTrieData other) {
-    if (other.root == null && other.singleton == null) {
-      return;
-    }
-    if (this.root == null && this.singleton == null) {
-      this.root = other.root == null ? null : new BoundedTrieNode(other.root); // deep copy
-      this.singleton = other.singleton == null ? null : new ArrayList<>(other.singleton);
-      this.bound = other.bound;
-      return;
-    }
-    BoundedTrieNode combined = new BoundedTrieNode(this.asTrie());
-    if (other.root != null) {
-      combined.merge(other.root);
-    } else {
-      combined.add(other.singleton);
-    }
-    this.bound = Math.min(this.bound, other.bound);
-    while (combined.getSize() > this.bound) {
-      combined.trim();
-    }
-    this.root = combined;
-    this.singleton = null;
-  }
+  // public synchronized void combine(@Nonnull BoundedTrieData other) {
+  //   if (other.root == null && other.singleton == null) {
+  //     return;
+  //   }
+  //   // other can be modified in some different thread, and we need to atomically access
+  //   // its fields to combine correctly. Furthermore, simply doing this under synchronized(other)
+  //   // is not safe as it might lead to deadlock. Assume the current thread got lock on
+  //   // 'this' and is executing combine with `other` and waiting to get a lock on
+  // synchronized(other)
+  //   // while some other thread is performing `other.combiner(this)` and waiting to get a
+  //   // lock on `this` object.
+  //   BoundedTrieData otherDeepCopy = other.getCumulative();
+  //   if (this.root == null && this.singleton == null) {
+  //     // do a deep copy of others as we need to access its field members atomically
+  //     // here and other threads can modify other.
+  //     this.root = otherDeepCopy.root;
+  //     this.singleton = otherDeepCopy.singleton;
+  //     this.bound = otherDeepCopy.bound;
+  //   }
+  //   otherDeepCopy.root = otherDeepCopy.asTrie();
+  //   if (this.root != null) {
+  //     otherDeepCopy.root.merge(this.root);
+  //   } else {
+  //     otherDeepCopy.root.add(this.singleton);
+  //   }
+  //   otherDeepCopy.bound = Math.min(this.bound, otherDeepCopy.bound);
+  //   while (otherDeepCopy.root.getSize() > otherDeepCopy.bound) {
+  //     otherDeepCopy.root.trim();
+  //   }
+  //   return otherDeepCopy;
+  // }
 
+  public synchronized BoundedTrieData combine(@Nonnull BoundedTrieData other) {
+    if (this.root == null && this.singleton == null) {
+      return other;
+    } else if (other.root == null && other.singleton == null) {
+      return this;
+    } else {
+      BoundedTrieData self = this; // Avoid modifying 'this' directly
+      if (self.root == null && other.root != null) {
+        self = other;
+        other = this;
+      }
+
+      BoundedTrieNode combined =
+          new BoundedTrieNode(self.asTrie()); // Assuming you have a TrieNode class
+      // combined.merge(self.asTrie()); // Assuming you have an asTrie() method
+
+      if (other.root != null) {
+        combined.merge(other.root);
+      } else {
+        combined.add(other.singleton);
+      }
+
+      self.bound = Math.min(self.bound, other.bound);
+      System.out.println("#### bound " + self.bound);
+
+      while (combined.getSize() > self.bound) { // Assuming TrieNode has a getSize() method
+        combined.trim();
+      }
+
+      return new BoundedTrieData(combined);
+    }
+  }
   /**
    * Returns the number of paths stored in this trie.
    *
@@ -219,7 +263,7 @@ public class BoundedTrieData implements Serializable {
     }
   }
 
-  public void clear() {
+  public synchronized void clear() {
     this.root = null;
     this.singleton = null;
     this.bound = DEFAULT_BOUND;
@@ -231,7 +275,7 @@ public class BoundedTrieData implements Serializable {
    * @param value The path to check.
    * @return True if the trie contains the path, false otherwise.
    */
-  public boolean contains(@Nonnull List<String> value) {
+  public synchronized boolean contains(@Nonnull List<String> value) {
     if (this.singleton != null) {
       return value.equals(this.singleton);
     } else if (this.root != null) {

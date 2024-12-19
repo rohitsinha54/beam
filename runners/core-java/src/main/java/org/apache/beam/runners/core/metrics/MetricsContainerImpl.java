@@ -614,14 +614,15 @@ public class MetricsContainerImpl implements Serializable, MetricsContainer {
           && Objects.equals(counters, metricsContainerImpl.counters)
           && Objects.equals(distributions, metricsContainerImpl.distributions)
           && Objects.equals(gauges, metricsContainerImpl.gauges)
-          && Objects.equals(stringSets, metricsContainerImpl.stringSets);
+          && Objects.equals(stringSets, metricsContainerImpl.stringSets)
+          && Objects.equals(boundedTries, metricsContainerImpl.boundedTries);
     }
     return false;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(stepName, counters, distributions, gauges, stringSets);
+    return Objects.hash(stepName, counters, distributions, gauges, stringSets, boundedTries);
   }
 
   /**

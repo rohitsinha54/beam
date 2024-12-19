@@ -43,6 +43,11 @@ public class BoundedTrieCell implements BoundedTrie, MetricCell<BoundedTrieData>
     this.value = new BoundedTrieData();
   }
 
+  public void update(BoundedTrieCell other) {
+    this.value.combine(other.value);
+    dirty.afterModification();
+  }
+
   @Override
   public void reset() {
     value.clear();
