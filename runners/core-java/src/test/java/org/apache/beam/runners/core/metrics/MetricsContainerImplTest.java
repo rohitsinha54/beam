@@ -34,6 +34,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.apache.beam.model.pipeline.v1.MetricsApi.MonitoringInfo;
 import org.apache.beam.sdk.metrics.MetricName;
 import org.apache.beam.sdk.util.HistogramData;
@@ -560,5 +564,33 @@ public class MetricsContainerImplTest {
             MonitoringInfoConstants.Urns.ELEMENT_COUNT,
             Collections.singletonMap("name", "counter"));
     assertFalse(MetricsContainerImpl.matchMetric(elementCountName, allowedMetricUrns));
+  }
+
+  @Test
+  public void testBoundedTrieMultithreaded() throws InterruptedException {
+    MetricsContainerImpl container = new MetricsContainerImpl("step1");
+    BoundedTrieCell boundedTrieCell =
+        container.getBoundedTrie(MetricName.named("test", "boundedTrie"));
+    int num_threads = 10;
+    int num_updates_per_thread = 9; // be under the default bound of 100
+
+    CountDownLatch latch = new CountDownLatch(num_threads);
+    ExecutorService executor = Executors.newFixedThreadPool(num_threads);
+    List<Runnable> tasks = new ArrayList<>();
+    for (int i = 0; i < num_threads; i++) {
+      tasks.add(
+          () -> {
+            for (int j = 0; j < num_updates_per_thread; j++) {
+              boundedTrieCell.add("value-" + Thread.currentThread().getId() + "-" + j);
+            }
+            latch.countDown();
+          });
+    }
+
+    tasks.forEach(executor::execute);
+    latch.await(1, TimeUnit.MINUTES);
+    executor.shutdown();
+
+    assertEquals(num_threads * num_updates_per_thread, boundedTrieCell.getCumulative().size());
   }
 }
